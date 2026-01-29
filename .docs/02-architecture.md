@@ -183,15 +183,40 @@ public class AINode : Node
 public class ToolNode : Node
 {
     public override NodeType Type => NodeType.Tool;
-    public ITool Tool { get; init; }
-    public ToolConfiguration ToolConfig { get; init; }
+    
+    /// <summary>
+    /// Collection of available tools, keyed by tool name.
+    /// When a ToolCallMessage is received, the tool name is used to select from this collection.
+    /// </summary>
+    public IReadOnlyDictionary<string, ITool> Tools { get; init; }
+    
+    /// <summary>
+    /// Common configuration for tool execution (timeout, retry policy, etc.)
+    /// </summary>
+    public ToolNodeConfiguration NodeConfig { get; init; }
+    
+    public override Task<NodeResult> ExecuteAsync(
+        ExecutionContext context,
+        CancellationToken cancellationToken)
+    {
+        // Extract the ToolCallMessage from context
+        // Get tool name from the message
+        // Look up tool in Tools collection
+        // Execute the selected tool with parameters from the message
+        // Return result as ToolMessage added to context
+    }
 }
 
-public class ToolConfiguration
+public class ToolNodeConfiguration
 {
-    public string ToolName { get; init; }
-    public Dictionary<string, string> ParameterMappings { get; init; }
+    /// <summary>
+    /// Default timeout for all tool executions from this node
+    /// </summary>
     public TimeSpan Timeout { get; init; } = TimeSpan.FromSeconds(30);
+    
+    /// <summary>
+    /// Retry policy applied to all tools in this node
+    /// </summary>
     public RetryPolicy RetryPolicy { get; init; }
 }
 ```
@@ -232,26 +257,153 @@ public class EdgeMetadata
 
 ### 2.2 Message System
 
-All messages inherit from a common base class and represent conversation history.
+All messages inherit from a common base class and represent conversation history. Messages support flexible content types including text, images, and tool calls.
 
-**Base Class**: `MessageBase`
+**Enums**:
 
 ```csharp
-public abstract class MessageBase
+public enum ImageDetail
 {
-    public string Id { get; init; } = Guid.NewGuid().ToString();
-    public DateTime Timestamp { get; init; } = DateTime.UtcNow;
-    public abstract MessageType Type { get; }
-    public Dictionary<string, object> Metadata { get; init; }
+    Auto,
+    Low,
+    High
 }
 
 public enum MessageType
 {
     Human,
     AI,
-    ToolCall,
     Tool,
-    System
+    System,
+    Function,
+    Remove
+}
+```
+
+**Message Content Types**:
+
+```csharp
+/// <summary>
+/// Image URL content with optional detail level
+/// </summary>
+public class MessageContentImageUrl
+{
+    public string Type => "image_url";
+    public ImageUrlData ImageUrl { get; init; }
+}
+
+public class ImageUrlData
+{
+    public string Url { get; init; }
+    public ImageDetail? Detail { get; init; }
+}
+
+/// <summary>
+/// Text content
+/// </summary>
+public class MessageContentText
+{
+    public string Type => "text";
+    public string Text { get; init; }
+}
+
+/// <summary>
+/// Tool use/function call content
+/// </summary>
+public class MessageContentToolUse
+{
+    public string Id { get; init; }
+    public object Input { get; init; }
+    public string Type => "tool_use";
+    public string Name { get; init; }
+    public int Index { get; init; }
+    public string PartialJson { get; init; }
+}
+
+/// <summary>
+/// Union type for complex message content
+/// </summary>
+public abstract record MessageContentComplex;
+
+public record MessageContentTextRecord(string Text) : MessageContentComplex;
+public record MessageContentImageUrlRecord(ImageUrlData ImageUrl) : MessageContentComplex;
+public record MessageContentToolUseRecord(string Id, object Input, string Name, int Index, string PartialJson) : MessageContentComplex;
+
+/// <summary>
+/// Message content can be a simple string or an array of complex content types
+/// </summary>
+public class MessageContent
+{
+    public bool IsSimple { get; init; }
+    public string SimpleContent { get; init; }
+    public List<MessageContentComplex> ComplexContent { get; init; }
+}
+```
+
+**Token Usage Tracking**:
+
+```csharp
+public class TokenUsage
+{
+    public int InputTokens { get; init; }
+    public int OutputTokens { get; init; }
+    public int TotalTokens => InputTokens + OutputTokens;
+    
+    public TokenDetailedUsage InputTokenDetails { get; init; }
+    public TokenDetailedUsage OutputTokenDetails { get; init; }
+}
+
+public class TokenDetailedUsage
+{
+    public int? Audio { get; init; }
+    public int? CacheRead { get; init; }
+    public int? CacheCreation { get; init; }
+    public int? Reasoning { get; init; }
+}
+```
+
+**Tool Call Information**:
+
+```csharp
+public class ToolCall
+{
+    public string Name { get; init; }
+    public Dictionary<string, object> Args { get; init; }
+    public string Id { get; init; }
+    public string Type => "tool_call";
+}
+
+public class InvalidToolCall
+{
+    public string Name { get; init; }
+    public string Args { get; init; }
+    public string Id { get; init; }
+    public string Error { get; init; }
+    public string Type => "invalid_tool_call";
+}
+```
+
+**Base Message Class**:
+
+```csharp
+public abstract class BaseMessage
+{
+    public string Id { get; init; } = Guid.NewGuid().ToString();
+    public DateTime Timestamp { get; init; } = DateTime.UtcNow;
+    public abstract MessageType Type { get; }
+    
+    public MessageContent Content { get; init; }
+    public string Name { get; init; }
+    
+    /// <summary>
+    /// Model-specific additional kwargs, which is passed back to the underlying LLM
+    /// </summary>
+    public Dictionary<string, object> AdditionalKwargs { get; init; } = new();
+    
+    /// <summary>
+    /// Response metadata from LLM provider
+    /// </summary>
+    public Dictionary<string, object> ResponseMetadata { get; init; } = new();
 }
 ```
 
@@ -259,64 +411,81 @@ public enum MessageType
 
 **HumanMessage**
 ```csharp
-public class HumanMessage : MessageBase
+public class HumanMessage : BaseMessage
 {
     public override MessageType Type => MessageType.Human;
-    public string Content { get; init; }
+    public bool Example { get; init; }
 }
 ```
 
 **AIMessage**
 ```csharp
-public class AIMessage : MessageBase
+public class AIMessage : BaseMessage
 {
     public override MessageType Type => MessageType.AI;
-    public string Content { get; init; }
-    public string Model { get; init; }
-    public TokenUsage TokenUsage { get; init; }
-}
-```
-
-**ToolCallMessage**
-```csharp
-public class ToolCallMessage : MessageBase
-{
-    public override MessageType Type => MessageType.ToolCall;
-    public string ToolName { get; init; }
-    public Dictionary<string, object> Parameters { get; init; }
-    public string CallId { get; init; }
+    public bool Example { get; init; }
+    
+    /// <summary>
+    /// Tool calls made by the AI in this message
+    /// </summary>
+    public List<ToolCall> ToolCalls { get; init; }
+    
+    /// <summary>
+    /// Invalid tool calls (parsing errors, etc.)
+    /// </summary>
+    public List<InvalidToolCall> InvalidToolCalls { get; init; }
+    
+    /// <summary>
+    /// Token usage metadata from the LLM
+    /// </summary>
+    public TokenUsage UsageMetadata { get; init; }
 }
 ```
 
 **ToolMessage**
 ```csharp
-public class ToolMessage : MessageBase
+public class ToolMessage : BaseMessage
 {
     public override MessageType Type => MessageType.Tool;
-    public string ToolName { get; init; }
-    public string CallId { get; init; } // References ToolCallMessage
-    public object Result { get; init; }
-    public bool Success { get; init; }
+    
+    /// <summary>
+    /// Status of the tool execution
+    /// </summary>
+    public string Status { get; init; } // "success" or "error"
+    
+    /// <summary>
+    /// References the ToolContentToolUse that triggered this execution
+    /// </summary>
+    public string ToolCallId { get; init; }
+    
+    /// <summary>
+    /// Full artifact of tool execution (may differ from Content if only a subset is sent to model)
+    /// </summary>
+    public object Artifact { get; init; }
 }
 ```
 
 **SystemMessage**
 ```csharp
-public class SystemMessage : MessageBase
+public class SystemMessage : BaseMessage
 {
     public override MessageType Type => MessageType.System;
-    public string Content { get; init; }
 }
 ```
 
-**Token Usage Tracking**
+**FunctionMessage** (Legacy support)
 ```csharp
-public class TokenUsage
+public class FunctionMessage : BaseMessage
 {
-    public int InputTokens { get; init; }
-    public int OutputTokens { get; init; }
-    public int TotalTokens => InputTokens + OutputTokens;
-    public decimal EstimatedCost { get; init; }
+    public override MessageType Type => MessageType.Function;
+}
+```
+
+**RemoveMessage** (Removes message from history)
+```csharp
+public class RemoveMessage : BaseMessage
+{
+    public override MessageType Type => MessageType.Remove;
 }
 ```
 
@@ -339,7 +508,7 @@ public class ExecutionContext
     // State management
     public IDictionary<string, object> GlobalVariables { get; init; }  // Shared state across all nodes
     public VariableScope Variables { get; init; }  // Node-scoped variables
-    public List<MessageBase> Messages { get; init; }
+    public List<BaseMessage> Messages { get; init; }
     public Stack<string> NodeExecutionHistory { get; init; }
     
     // Dependency Injection
@@ -398,24 +567,13 @@ public class Checkpoint
     public DateTime CreatedAt { get; init; }
     
     // State snapshot
-    public string CurrentNodeId { get; init; }
-    public Dictionary<string, object> GlobalVariables { get; init; }
-    public Dictionary<string, Dictionary<string, object>> NodeVariables { get; init; }
-    public List<MessageBase> Messages { get; init; }
-    public List<string> NodeExecutionHistory { get; init; }
+    public List<BaseMessage> Messages { get; init; }
     
-    // Metadata
-    public CheckpointTrigger Trigger { get; init; }
-    public long SizeInBytes { get; init; }
-    public Dictionary<string, object> Metadata { get; init; }
-}
-
-public enum CheckpointTrigger
-{
-    Auto,           // Automatic before each node
-    Manual,         // User/code triggered
-    Error,          // Created on error
-    Conditional     // Based on condition
+    /// <summary>
+    /// Marshalled ExecutionContext for restoring execution state.
+    /// Contains all variables, metrics, and state needed to resume from this checkpoint.
+    /// </summary>
+    public ExecutionContext ExecutionContext { get; init; }
 }
 ```
 
@@ -486,7 +644,7 @@ public class NodeMiddlewareContext
 {
     public Node Node { get; init; }
     public ExecutionContext ExecutionContext { get; init; }
-    public List<MessageBase> Messages { get; init; }
+    public List<BaseMessage> Messages { get; init; }
     public Dictionary<string, object> Variables { get; init; }
 }
 ```
@@ -509,7 +667,7 @@ public interface ILLMNodeMiddleware : INodeMiddleware
 
 public class LLMRequest
 {
-    public List<MessageBase> Messages { get; set; }
+    public List<BaseMessage> Messages { get; set; }
     public string SystemPrompt { get; set; }
     public Dictionary<string, object> Parameters { get; set; }
 }
@@ -518,7 +676,8 @@ public class LLMResponse
 {
     public string Content { get; set; }
     public TokenUsage TokenUsage { get; set; }
-    public List<ToolCallMessage> ToolCalls { get; set; }
+    public List<ToolCall> ToolCalls { get; set; }
+    public List<InvalidToolCall> InvalidToolCalls { get; set; }
     public Dictionary<string, object> Metadata { get; set; }
 }
 ```
@@ -586,7 +745,7 @@ public class ExecutionResult
 {
     public bool Success { get; init; }
     public ExecutionContext Context { get; init; }
-    public List<MessageBase> Messages { get; init; }
+    public List<BaseMessage> Messages { get; init; }
     public object FinalOutput { get; init; }
     public TimeSpan Duration { get; init; }
     public Exception Error { get; init; }
@@ -636,10 +795,7 @@ public interface ILLMProvider
 public enum LLMProvider
 {
     OpenAI,
-    Azure,
-    Anthropic,
-    Ollama,
-    Custom
+    Ollama
 }
 
 public class LLMStreamChunk
@@ -657,19 +813,6 @@ public class LLMStreamChunk
 public class OpenAIProvider : ILLMProvider
 {
     private readonly HttpClient _httpClient;
-    private readonly string _apiKey;
-}
-
-public class AnthropicProvider : ILLMProvider
-{
-    private readonly HttpClient _httpClient;
-    private readonly string _apiKey;
-}
-
-public class AzureOpenAIProvider : ILLMProvider
-{
-    private readonly HttpClient _httpClient;
-    private readonly string _endpoint;
     private readonly string _apiKey;
 }
 
@@ -776,7 +919,7 @@ public class GraphBuilder
     public GraphBuilder AddToolNode(
         string id,
         string name,
-        ITool tool,
+        IDictionary<string, ITool> tools,  // Collection of tools by name
         Action<ToolNodeBuilder> configure = null);
     
     public GraphBuilder AddEdge(
@@ -796,9 +939,24 @@ public class AINodeBuilder
 
 public class ToolNodeBuilder
 {
+    /// <summary>
+    /// Add or register a tool in this node's tool collection
+    /// </summary>
+    public ToolNodeBuilder AddTool(string toolName, ITool tool);
+    
+    /// <summary>
+    /// Set default timeout for all tools in this node
+    /// </summary>
     public ToolNodeBuilder WithTimeout(TimeSpan timeout);
+    
+    /// <summary>
+    /// Set default retry policy for all tools in this node
+    /// </summary>
     public ToolNodeBuilder WithRetryPolicy(RetryPolicy policy);
-    public ToolNodeBuilder WithParameterMapping(string paramName, string expression);
+    
+    /// <summary>
+    /// Add middleware to this tool node
+    /// </summary>
     public ToolNodeBuilder AddMiddleware(INodeMiddleware middleware);
 }
 ```
@@ -968,25 +1126,27 @@ No heavy SDK dependencies - direct HTTP/JSON for maximum control and minimal ove
 
 ### 4.3 Message Layer
 
-**MessageBase** (and subclasses)
-- Represent conversation history
+**BaseMessage** (and subclasses)
+- Represent conversation history with rich content types
+- Support text, images, and tool calls
 - Capture timestamps and metadata
-- Support different interaction types (human, AI, tool)
+- Support different interaction types (human, AI, tool, system, function, remove)
 - Enable message-based routing decisions
 
 ### 4.4 Checkpoint Layer
 
 **Checkpoint**
-- Snapshot execution state at point in time
-- Enable rollback to previous state
-- Support replay from checkpoint
-- Facilitate debugging and testing
+- Snapshot execution state at a point in time with messages and full execution context
+- Enable restoration to previous state for resuming interrupted workflows
+- Support replay from checkpoint by restoring ExecutionContext
+- Facilitate debugging and time-travel analysis
+- Minimal footprint: only stores essential state (messages + execution context)
 
 **ICheckpointStore** (and implementations)
-- Persist checkpoints to storage
+- Persist checkpoints to storage (in-memory, file system, or database)
 - Retrieve checkpoints by ID or execution ID
 - Manage checkpoint lifecycle (creation, retrieval, deletion)
-- Enforce retention policies (pruning)
+- Enforce retention policies (pruning based on age or count)
 
 ### 4.5 Middleware Layer
 
@@ -1193,16 +1353,17 @@ var jsonOptions = new JsonSerializerOptions
     DefaultIgnoreCondition = JsonIgnoreCondition.WhenWritingNull,
     Converters = {
         new JsonStringEnumConverter(),
-        new MessageBaseConverter(), // Custom polymorphic converter
+        new BaseMessageConverter(), // Custom polymorphic converter
         new NodeConverter()
     }
 };
 ```
 
 **Polymorphic Serialization**:
-- Custom converters for MessageBase hierarchy
+- Custom converters for BaseMessage hierarchy
 - Type discriminators for deserialization
-- Support for derived types (AIMessage, HumanMessage, etc.)
+- Support for derived types (AIMessage, HumanMessage, ToolMessage, SystemMessage, FunctionMessage, RemoveMessage)
+- Support for complex content types (text, image URLs, tool use)
 
 ### 9.2 Checkpoint Serialization
 
@@ -1275,11 +1436,16 @@ WolfAI/
 │   │   │   ├── Edge.cs
 │   │   │   └── GraphBuilder.cs
 │   │   ├── Messages/
-│   │   │   ├── MessageBase.cs
+│   │   │   ├── BaseMessage.cs
 │   │   │   ├── HumanMessage.cs
 │   │   │   ├── AIMessage.cs
-│   │   │   ├── ToolCallMessage.cs
-│   │   │   └── ToolMessage.cs
+│   │   │   ├── ToolMessage.cs
+│   │   │   ├── SystemMessage.cs
+│   │   │   ├── FunctionMessage.cs
+│   │   │   ├── RemoveMessage.cs
+│   │   │   ├── MessageContent.cs
+│   │   │   ├── ToolCall.cs
+│   │   │   └── TokenUsage.cs
 │   │   ├── Execution/
 │   │   │   ├── ExecutionContext.cs
 │   │   │   ├── ExecutionResult.cs
