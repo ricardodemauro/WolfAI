@@ -87,7 +87,6 @@ public abstract class Node
     public string Name { get; init; }
     public abstract NodeType Type { get; }
     public List<INodeMiddleware> Middleware { get; init; }
-    public Dictionary<string, object> Configuration { get; init; }
     
     public abstract Task<NodeResult> ExecuteAsync(
         ExecutionContext context,
@@ -729,13 +728,28 @@ public class GraphExecutionEngine
     public async Task<ExecutionResult> ReplayFromCheckpointAsync(
         string checkpointId,
         CancellationToken cancellationToken);
-    
-    private async Task<NodeResult> ExecuteNodeAsync(
+}
+
+public class NodeExecutor
+{
+    /// <summary>
+    /// Executes a node with middleware pipeline.
+    /// Flow: OnBeforeExecute (middleware) → ExecuteAsync (node) → OnAfterExecute (middleware)
+    /// </summary>
+    public async Task<NodeResult> ExecuteAsync(
         Node node,
         ExecutionContext context,
         CancellationToken cancellationToken);
-    
-    private async Task<Edge> DetermineNextEdgeAsync(
+}
+
+public class EdgeRouter
+{
+    /// <summary>
+    /// Evaluates all outgoing edges from a node and returns the next edge to follow.
+    /// Edges are evaluated in priority order (lower priority first).
+    /// Only the first edge with a routing function that returns true is selected.
+    /// </summary>
+    public async Task<Edge> DetermineNextEdgeAsync(
         Node currentNode,
         ExecutionContext context,
         CancellationToken cancellationToken);
@@ -796,6 +810,14 @@ public enum LLMProvider
 {
     OpenAI,
     Ollama
+}
+
+public enum ExporterType
+{
+    Console,
+    OTLP,
+    Jaeger,
+    Prometheus
 }
 
 public class LLMStreamChunk
@@ -1050,8 +1072,6 @@ graph.AddAINode("dataLoader", "Load User Data", customLogic, config =>
 
 Direct HTTP client implementations for each provider:
 - OpenAI API - Custom HTTP client with OpenAI API spec
-- Anthropic API - Custom HTTP client with Claude API spec
-- Azure OpenAI API - Custom HTTP client with Azure endpoints
 - Ollama API - Custom HTTP client for local models
 
 No heavy SDK dependencies - direct HTTP/JSON for maximum control and minimal overhead.
@@ -1317,8 +1337,16 @@ public class TelemetryConfiguration
 
 public class ExporterConfiguration
 {
-    public ExporterType Type { get; init; } // Console, OTLP, Jaeger, Prometheus
+    public ExporterType Type { get; init; }
     public Dictionary<string, string> Settings { get; init; }
+}
+
+public class LoggingConfiguration
+{
+    public bool Enabled { get; init; } = true;
+    public LogLevel MinimumLevel { get; init; } = LogLevel.Information;
+    public bool IncludeScopes { get; init; } = true;
+    public Dictionary<string, LogLevel> CategoryLevels { get; init; } = new();
 }
 
 public class LLMProviderConfiguration
@@ -1395,7 +1423,7 @@ public static class ServiceCollectionExtensions
         
         // LLM Providers
         services.AddHttpClient<ILLMProvider, OpenAIProvider>();
-        services.AddHttpClient<ILLMProvider, AnthropicProvider>();
+        services.AddHttpClient<ILLMProvider, OllamaProvider>();
         
         // Tools
         services.AddTransient<ITool, WebSearchTool>();
@@ -1478,10 +1506,6 @@ WolfAI/
 │   ├── WolfAI.LLM/                     # LLM provider implementations
 │   │   ├── OpenAI/
 │   │   │   └── OpenAIProvider.cs
-│   │   ├── Anthropic/
-│   │   │   └── AnthropicProvider.cs
-│   │   ├── Azure/
-│   │   │   └── AzureOpenAIProvider.cs
 │   │   └── Ollama/
 │   │       └── OllamaProvider.cs
 │   │
