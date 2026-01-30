@@ -1,7 +1,10 @@
+using WolfAI.Core.Domain.Messages;
+
 namespace WolfAI.Core.Domain.Results;
 
 /// <summary>
 /// Represents the outcome of executing a node.
+/// Contains state changes to be applied by the execution engine (immutable pattern).
 /// </summary>
 public class NodeResult
 {
@@ -16,9 +19,16 @@ public class NodeResult
     public required object? Output { get; init; }
 
     /// <summary>
-    /// Variables set during node execution.
+    /// Messages to be appended to the execution context message history.
+    /// The graph execution engine is responsible for creating a new context with these messages.
     /// </summary>
-    public required Dictionary<string, object?> Variables { get; init; }
+    public required IReadOnlyList<BaseMessage> Messages { get; init; }
+
+    /// <summary>
+    /// Variables to be added/updated in the execution context.
+    /// The graph execution engine is responsible for creating a new context with these variables.
+    /// </summary>
+    public required IReadOnlyDictionary<string, object?> Variables { get; init; }
 
     /// <summary>
     /// Error message if execution failed.
@@ -35,14 +45,16 @@ public class NodeResult
     /// </summary>
     public static NodeResult SuccessResult(
         object? output = null,
-        Dictionary<string, object?>? variables = null,
+        IReadOnlyList<BaseMessage>? messages = null,
+        IReadOnlyDictionary<string, object?>? variables = null,
         TimeSpan? duration = null)
     {
         return new NodeResult
         {
             Success = true,
             Output = output,
-            Variables = variables ?? new(),
+            Messages = messages ?? Array.Empty<BaseMessage>(),
+            Variables = variables ?? new Dictionary<string, object?>(),
             Error = null,
             Duration = duration ?? TimeSpan.Zero
         };
@@ -54,14 +66,16 @@ public class NodeResult
     public static NodeResult FailureResult(
         string error,
         object? output = null,
-        Dictionary<string, object?>? variables = null,
+        IReadOnlyList<BaseMessage>? messages = null,
+        IReadOnlyDictionary<string, object?>? variables = null,
         TimeSpan? duration = null)
     {
         return new NodeResult
         {
             Success = false,
             Output = output,
-            Variables = variables ?? new(),
+            Messages = messages ?? Array.Empty<BaseMessage>(),
+            Variables = variables ?? new Dictionary<string, object?>(),
             Error = error,
             Duration = duration ?? TimeSpan.Zero
         };

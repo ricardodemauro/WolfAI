@@ -105,7 +105,8 @@ public class NodeResult
 {
     public bool Success { get; init; }
     public object Output { get; init; }
-    public Dictionary<string, object> Variables { get; init; }
+    public IReadOnlyList<BaseMessage> Messages { get; init; }  // Messages to append
+    public IReadOnlyDictionary<string, object> Variables { get; init; }  // Variables to merge
     public Exception Error { get; init; }
     public TimeSpan Duration { get; init; }
 }
@@ -502,13 +503,20 @@ public class ExecutionContext
     public string ExecutionId { get; init; }  // Unique execution identifier
     public string ThreadId { get; init; }     // Conversation/thread identifier
     public string GraphId { get; init; }
-    public string CurrentNodeId { get; set; }
+    public string CurrentNodeId { get; set; }  // Only mutable property for tracking
     
-    // State management
-    public IDictionary<string, object> GlobalVariables { get; init; }  // Shared state across all nodes
-    public VariableScope Variables { get; init; }  // Node-scoped variables
-    public List<BaseMessage> Messages { get; init; }
-    public Stack<string> NodeExecutionHistory { get; init; }
+    // State management (ALL READ-ONLY - IMMUTABLE)
+    public IReadOnlyDictionary<string, object> GlobalVariables { get; }  // Shared state across all nodes
+    public VariableScope Variables { get; }  // Node-scoped variables (read-only)
+    public IReadOnlyList<BaseMessage> Messages { get; }  // Immutable message history
+    public IReadOnlyList<string> NodeExecutionHistory { get; }  // Immutable execution history
+    
+    // Factory method for creating new context with updates
+    public ExecutionContext WithUpdates(
+        IEnumerable<BaseMessage> newMessages,
+        IDictionary<string, object> newVariables,
+        string newNodeId,
+        string recordNodeExecution);
     
     // Dependency Injection
     public IServiceProvider ServiceProvider { get; init; }  // Access to registered services

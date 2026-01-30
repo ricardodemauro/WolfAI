@@ -1,5 +1,8 @@
 using FluentAssertions;
+using System.Diagnostics;
+using Microsoft.Extensions.Logging;
 using WolfAI.Core.Domain.Execution;
+using WolfAI.Core.Domain.Messages;
 using WolfAI.Core.Domain.Edges;
 
 namespace WolfAI.Tests.Domain.Edges;
@@ -8,7 +11,29 @@ public class EdgeTests
 {
     private class MockExecutionContext : IExecutionContext
     {
+        public string ExecutionId { get; } = "test-exec";
+        public string ThreadId { get; } = "test-thread";
+        public string GraphId { get; } = "test-graph";
+        public string CurrentNodeId { get; set; } = "test-node";
+        public IDictionary<string, object?> GlobalVariables { get; } = new Dictionary<string, object?>();
+        public VariableScope Variables { get; } = new VariableScope(new Dictionary<string, object?>());
+        public List<BaseMessage> Messages { get; } = new();
+        public Stack<string> NodeExecutionHistory { get; } = new();
+        public IServiceProvider? ServiceProvider { get; }
+        public ILogger? Logger { get; }
+        public ActivitySource? ActivitySource { get; }
+        public Activity? CurrentActivity { get; set; }
+        public CancellationToken CancellationToken { get; }
+        public ExecutionMetrics Metrics { get; } = new();
+        public DateTime StartedAt { get; } = DateTime.UtcNow;
+        public Dictionary<string, object?> Metadata { get; } = new();
+        public TimeSpan Elapsed { get; }
+
         public bool ContextValue { get; set; }
+
+        public void AddMessage(BaseMessage message) { }
+        public void RecordNodeExecution(string nodeId) { }
+        public IReadOnlyList<string> GetExecutionHistory() => new List<string>();
     }
 
     [Fact]

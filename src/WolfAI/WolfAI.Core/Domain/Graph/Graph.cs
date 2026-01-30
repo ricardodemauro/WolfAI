@@ -100,6 +100,35 @@ public class Graph
             throw new InvalidOperationException($"Entry node '{EntryNodeId}' not found in graph.");
         }
 
+        // Verify entry node is a StartNode
+        var entryNode = Nodes[EntryNodeId];
+        if (entryNode.NodeType != NodeType.Start)
+        {
+            throw new InvalidOperationException(
+                $"Entry node '{EntryNodeId}' must be of type StartNode, but is '{entryNode.NodeType}'.");
+        }
+
+        // Verify at least one EndNode exists
+        var hasEndNode = Nodes.Values.Any(n => n.NodeType == NodeType.End);
+        if (!hasEndNode)
+        {
+            throw new InvalidOperationException("Graph must contain at least one EndNode.");
+        }
+
+        // Verify EndNodes have no outgoing edges
+        var endNodes = Nodes.Values.Where(n => n.NodeType == NodeType.End).Select(n => n.Id).ToList();
+        var endNodesWithOutgoingEdges = Edges
+            .Where(e => endNodes.Contains(e.SourceNodeId))
+            .Select(e => e.SourceNodeId)
+            .Distinct()
+            .ToList();
+
+        if (endNodesWithOutgoingEdges.Any())
+        {
+            throw new InvalidOperationException(
+                $"EndNodes cannot have outgoing edges. Violations: {string.Join(", ", endNodesWithOutgoingEdges)}");
+        }
+
         // Verify all edge source and target nodes exist
         foreach (var edge in Edges)
         {

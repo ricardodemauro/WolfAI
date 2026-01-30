@@ -31,17 +31,17 @@ This document breaks down the MVP implementation into concrete, actionable tasks
 *Dependencies: None*  
 *Estimated Effort: 2-3 days*
 
-#### Task 1.1.1: Implement Graph, Node, and Edge Base Classes
+#### Task 1.1.1: Implement Graph, Node, and Edge Base Classes ✅ **COMPLETED**
 
 **Objective**: Create the foundational graph model classes.
 
 **Acceptance Criteria**:
-- [ ] `Graph` class with properties: `Id`, `Name`, `Nodes` (IReadOnlyDictionary), `Edges` (IReadOnlyList), `EntryNodeId`
-- [ ] `Node` abstract base class with: `Id`, `Name`, `NodeType` property, `Middleware` collection, and `ExecuteAsync` abstract method
-- [ ] `NodeType` enum: `Start`, `End`, `AI`, `Tool`
-- [ ] `NodeResult` class with: `Success`, `Output`, `Variables`, `Error`, `Duration`
-- [ ] `Edge` class with: `Id`, `SourceNodeId`, `TargetNodeId`, `RoutingFunction` (Func<ExecutionContext, bool>), `Priority`
-- [ ] `EdgeMetadata` class with: `Description`, `Tags`
+- [x] `Graph` class with properties: `Id`, `Name`, `Nodes` (IReadOnlyDictionary), `Edges` (IReadOnlyList), `EntryNodeId`
+- [x] `Node` abstract base class with: `Id`, `Name`, `NodeType` property, `Middleware` collection, and `ExecuteAsync` abstract method
+- [x] `NodeType` enum: `Start`, `End`, `AI`, `Tool`
+- [ ] `NodeResult` class with: `Success`, `Output`, `Messages` (IReadOnlyList<BaseMessage> to append), `Variables` (IReadOnlyDictionary<string, object> to merge), `Error`, `Duration`
+- [x] `Edge` class with: `Id`, `SourceNodeId`, `TargetNodeId`, `RoutingFunction` (Func<ExecutionContext, bool>), `Priority`
+- [x] `EdgeMetadata` class with: `Description`, `Tags`
 
 **Reference**: [Architecture 2.1.1-2.1.3](02-architecture.md#211-graph)
 
@@ -57,22 +57,22 @@ This document breaks down the MVP implementation into concrete, actionable tasks
 
 ---
 
-#### Task 1.1.2: Implement Message System
+#### Task 1.1.2: Implement Message System ✅ **COMPLETED**
 
 **Objective**: Create the complete message type hierarchy for conversation history.
 
 **Acceptance Criteria**:
-- [ ] `MessageType` enum: `Human`, `AI`, `Tool`, `System`, `Function`, `Remove`
-- [ ] `ImageDetail` enum: `Auto`, `Low`, `High`
-- [ ] `MessageContent` class supporting both simple string and complex content array
-- [ ] `MessageContentImageUrl`, `MessageContentText`, `MessageContentToolUse` classes
-- [ ] `MessageContentComplex` abstract record discriminator
-- [ ] `BaseMessage` abstract base class with: `Id`, `Timestamp`, `Type`, `Content`, `Name`, `AdditionalKwargs`, `ResponseMetadata`
-- [ ] Concrete message classes: `HumanMessage`, `AIMessage`, `ToolMessage`, `SystemMessage`, `FunctionMessage`, `RemoveMessage`
-- [ ] `ToolCall` and `InvalidToolCall` classes for LLM tool invocations
-- [ ] `TokenUsage` class with: `InputTokens`, `OutputTokens`, `TotalTokens`, `InputTokenDetails`, `OutputTokenDetails`
-- [ ] `TokenDetailedUsage` class for audio, cache, reasoning token breakdowns
-- [ ] `AIMessage` includes collections for `ToolCalls`, `InvalidToolCalls`, and `UsageMetadata`
+- [x] `MessageType` enum: `Human`, `AI`, `Tool`, `System`, `Function`, `Remove`
+- [x] `ImageDetail` enum: `Auto`, `Low`, `High`
+- [x] `MessageContent` class supporting both simple string and complex content array
+- [x] `MessageContentImageUrl`, `MessageContentText`, `MessageContentToolUse` classes
+- [x] `MessageContentComplex` abstract record discriminator
+- [x] `BaseMessage` abstract base class with: `Id`, `Timestamp`, `Type`, `Content`, `Name`, `AdditionalKwargs`, `ResponseMetadata`
+- [x] Concrete message classes: `HumanMessage`, `AIMessage`, `ToolMessage`, `SystemMessage`, `FunctionMessage`, `RemoveMessage`
+- [x] `ToolCall` and `InvalidToolCall` classes for LLM tool invocations
+- [x] `TokenUsage` class with: `InputTokens`, `OutputTokens`, `TotalTokens`, `InputTokenDetails`, `OutputTokenDetails`
+- [x] `TokenDetailedUsage` class for audio, cache, reasoning token breakdowns
+- [x] `AIMessage` includes collections for `ToolCalls`, `InvalidToolCalls`, and `UsageMetadata`
 
 **Reference**: [Architecture 2.2](02-architecture.md#22-message-system) and [Specs 3.7-3.8](01-specs.md#37-message-types)
 
@@ -90,29 +90,34 @@ This document breaks down the MVP implementation into concrete, actionable tasks
 
 ---
 
-###  **Phase 1.2: Execution Context and State Management**
+###  **Phase 1.2: Execution Context and State Management** ✅ **COMPLETED**
 *Dependencies: Phase 1.1*  
 *Estimated Effort: 2 days*
 
-#### Task 1.2.1: Implement ExecutionContext and VariableScope
+#### Task 1.2.1: Implement ExecutionContext and VariableScope ✅ **COMPLETED**
 
 **Objective**: Build the runtime state container for graph execution.
 
 **Acceptance Criteria**:
-- [ ] `ExecutionContext` class with: `ExecutionId`, `ThreadId`, `GraphId`, `CurrentNodeId`, `GlobalVariables`, `Variables` (VariableScope), `Messages`, `NodeExecutionHistory`, `ServiceProvider`, `Logger`, `ActivitySource`, `CurrentActivity`, `CancellationToken`, `Metrics`, `StartedAt`, `Metadata`
-- [ ] `VariableScope` class managing hierarchical variables (global + node-scoped)
-- [ ] Methods on `VariableScope`: `GetGlobal()`, `SetGlobal()`, `GetNodeVariable()`, `SetNodeVariable()`, `TryGetVariable()` (with fallback)
-- [ ] `ExecutionMetrics` class tracking: `NodesExecuted`, `TotalTokensUsed`, `TotalEstimatedCost`, `TotalDuration`, `NodeTypeCounters`
-- [ ] Thread-safe access to ExecutionContext state
-- [ ] Support for serialization/deserialization for checkpoint restoration
+- [x] `ExecutionContext` class with: `ExecutionId`, `ThreadId`, `GraphId`, `CurrentNodeId`, `GlobalVariables` (READ-ONLY), `Variables` (VariableScope - READ-ONLY), `Messages` (READ-ONLY), `NodeExecutionHistory` (READ-ONLY), `ServiceProvider`, `Logger`, `ActivitySource`, `CurrentActivity`, `CancellationToken`, `Metrics`, `StartedAt`, `Metadata` (READ-ONLY)
+- [x] **IMMUTABILITY**: All collections are read-only (IReadOnlyDictionary, IReadOnlyList)
+- [x] `WithUpdates()` method for creating new ExecutionContext with merged state
+- [x] `VariableScope` class managing hierarchical variables (global + node-scoped) - read-only access
+- [x] Methods on `VariableScope`: `GetGlobal()`, `SetGlobal()`, `GetNodeVariable()`, `SetNodeVariable()`, `TryGetVariable()` (with fallback)
+- [x] `ExecutionMetrics` class tracking: `NodesExecuted`, `TotalTokensUsed`, `TotalEstimatedCost`, `TotalDuration`, `NodeTypeCounters`
+- [x] Thread-safe access to ExecutionContext state (using ConcurrentDictionary for VariableScope)
+- [x] Support for serialization/deserialization for checkpoint restoration (ExecutionContextSnapshot)
+- [x] Static `FromSnapshot()` method for creating ExecutionContext from checkpoint
 
 **Reference**: [Architecture 2.3](02-architecture.md#23-execution-context) and [Specs 6.2](01-specs.md#62-execution-context)
 
 **Implementation Notes**:
-- Use `ConcurrentDictionary` for thread-safe variable storage
-- Implement copy-on-write semantics for checkpoint integrity
-- ExecutionContext should be mutable during execution but immutable when checkpointed
-- Design VariableScope for efficient nested scope resolution
+- Use `ConcurrentDictionary` for thread-safe variable storage in VariableScope
+- **ExecutionContext is IMMUTABLE** - nodes cannot mutate context directly
+- Nodes return state changes via NodeResult (messages + variables)
+- GraphExecutionEngine creates new ExecutionContext using `WithUpdates()` method
+- This enables proper time-travel debugging and thread-safety
+- Design VariableScope for efficient nested scope resolution with read-only access
 
 **Tests to Write**:
 - Variable scoping (global vs node-level)
@@ -133,11 +138,12 @@ This document breaks down the MVP implementation into concrete, actionable tasks
 **Acceptance Criteria**:
 - [ ] `StartNode` sealed class inheriting `Node`
   - `NodeType` returns `NodeType.Start`
-  - `ExecuteAsync`: Extracts initial HumanMessage from ExecutionContext and adds to message history
+  - `ExecuteAsync`: Returns NodeResult with initial HumanMessage from ExecutionContext.GlobalVariables["input"]
+  - **DOES NOT mutate context** - returns messages to be appended by execution engine
   - No outgoing routing logic (always passes to first edge)
 - [ ] `EndNode` sealed class inheriting `Node`
   - `NodeType` returns `NodeType.End`
-  - `ExecuteAsync`: Captures final output from context and terminates execution
+  - `ExecuteAsync`: Returns NodeResult with final output captured from last message
   - No outgoing edges allowed (validation in Graph)
 - [ ] Graph validation ensures: StartNode at entry, EndNode at exit, no other entry/exit points
 
@@ -164,8 +170,9 @@ This document breaks down the MVP implementation into concrete, actionable tasks
 **Acceptance Criteria**:
 - [ ] `AINode` class inheriting `Node`
   - `NodeType` returns `NodeType.AI`
-  - `ExecutionLogic` property accepting `Func<ExecutionContext, CancellationToken, Task<NodeResult>>`
+  - `ExecutionLogic` property accepting `Func<IExecutionContext, CancellationToken, Task<NodeResult>>`
   - `ExecuteAsync`: Delegates to user-provided ExecutionLogic
+  - **User logic returns NodeResult with messages/variables** - NOT mutating context
   - Middleware pipeline applies before/after execution
 - [ ] Support for any C# execution logic (LLM calls, database queries, custom algorithms)
 - [ ] Proper error handling with exception propagation to NodeResult
@@ -183,7 +190,8 @@ This document breaks down the MVP implementation into concrete, actionable tasks
 - Async operation support
 - Error handling and exception propagation
 - Cancellation token propagation
-- Context mutation (message addition, variable updates)
+- NodeResult contains messages and variables (not context mutation)
+- Verifying context remains unchanged after node execution
 
 ---
 
@@ -408,10 +416,11 @@ This document breaks down the MVP implementation into concrete, actionable tasks
 
 **Implementation Notes**:
 - ExecuteAsync orchestrates the main loop: Initialize → Loop until terminal node → Return result
-- Support checkpoint creation based on strategy
+- **After each node execution**: Create new ExecutionContext using `context.WithUpdates(nodeResult.Messages, nodeResult.Variables, recordNodeExecution)`
+- Support checkpoint creation based on strategy (checkpoint the NEW context after updates)
 - Handle cancellation token throughout
 - Proper error handling with ExecutionResult containing error info
-- Metrics accumulation in ExecutionContext
+- Metrics accumulation in ExecutionContext (Metrics object is mutable for performance)
 - Thread-safe for concurrent execution up to MaxConcurrentExecutions
 
 **Tests to Write**:
@@ -446,8 +455,10 @@ This document breaks down the MVP implementation into concrete, actionable tasks
 - Middleware is empty for MVP (prepare for Phase 3)
 - Handle exceptions and wrap in NodeResult
 - Track execution duration
-- Propagate Execution token
-- Update ExecutionContext.CurrentNodeId
+- Propagate cancellation token
+- **Returns NodeResult** - does NOT mutate ExecutionContext
+- NodeExecutor is responsible for timing and error wrapping only
+- Actual state merging happens in GraphExecutionEngine using `context.WithUpdates()`
 
 **Tests to Write**:
 - Node execution with result capture
@@ -621,6 +632,76 @@ This document breaks down the MVP implementation into concrete, actionable tasks
 - **Minimum**: 80% code coverage
 - **Critical Paths**: 100% coverage (execution, checkpoints, message history)
 - **Happy Path**: Thoroughly tested basic workflows
+
+---
+
+## Sample Project: WolfAI.Samples
+
+### Overview
+
+Located in `src/WolfAI/Samples/`, the WolfAI.Samples console application demonstrates how to use the WolfAI.Core APIs for basic graph construction and execution without requiring external LLM services. This sample serves as both documentation and an integrated test for the core APIs.
+
+### Running the Sample
+
+```bash
+cd src/WolfAI
+dotnet run --project Samples/WolfAI.Samples.csproj
+```
+
+### What the Sample Demonstrates
+
+The sample creates a simple workflow graph with the following structure:
+
+```
+StartNode
+    ↓
+ProcessingNode (transforms input to uppercase)
+    ↓
+DecisionNode (evaluates success flag)
+    ├→ SuccessEndNode (if processed_success = true)
+    └→ FailureEndNode (if processed_success ≠ true)
+```
+
+**Key Concepts Shown**:
+
+1. **Graph Construction**: Building a Graph with nodes and edges
+2. **Node Types**: Custom implementation of `StartNode`, `AINode` (ProcessingNode, DecisionNode), and `EndNode`
+3. **Node Execution**: Running nodes asynchronously with `ExecuteAsync()`
+4. **ExecutionContext**: Creating and immutably updating context with `WithUpdates()`
+5. **Routing Logic**: Evaluating edges with `routingFunction` predicates for conditional routing
+6. **Snapshots**: Creating execution context snapshots for checkpointing
+7. **State Management**: Tracking node execution history and global variables
+
+### Sample Components
+
+- **SimpleStartNode**: Extracts initial input from `GlobalVariables["input"]`
+- **ProcessingNode**: Transforms input (uppercase) and sets variables for routing
+- **DecisionNode**: Makes routing decisions based on context variables
+- **SimpleEndNode**: Terminal node that marks successful completion
+
+### Example Output
+
+The sample produces console output showing:
+- Graph structure and configuration
+- Step-by-step node execution with timing
+- Edge routing decisions
+- Execution summary with history and final state
+- Context snapshot data
+
+### Using the Sample for Integration Testing
+
+To extend this sample for your own integration tests:
+
+1. **Custom Nodes**: Implement additional `Node` subclasses with your own logic
+2. **Conditional Routing**: Add `routingFunction` predicates to edges to test branching
+3. **Variable Tracking**: Examine `context.GlobalVariables` to verify state changes
+4. **Execution History**: Check `context.NodeExecutionHistory` to validate execution order
+5. **Snapshots**: Use `context.CreateSnapshot()` to verify state capture
+
+### Files
+
+- [Program.cs](../src/WolfAI/Samples/Program.cs) - Complete sample implementation with detailed comments
+- [WolfAI.Samples.csproj](../src/WolfAI/Samples/WolfAI.Samples.csproj) - Project configuration
 
 ---
 
