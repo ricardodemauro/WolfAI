@@ -43,7 +43,10 @@ public class AINodeTests
     public void AINode_Constructor_Sets_Properties()
     {
         // Act
-        var aiNode = new AINode("ai-1", "AI Classifier");
+        var aiNode = new AINode("ai-1", "AI Classifier")
+        {
+            ExecutionLogic = async (context, ct) => NodeResult.SuccessResult(output: "test")
+        };
 
         // Assert
         aiNode.Id.Should().Be("ai-1");
@@ -80,7 +83,7 @@ public class AINodeTests
                     {
                         new AIMessage(
                             id: "msg-1",
-                            content: new MessageContent { IsSimple = true, SimpleContent = "AI Response" }
+                            content: new MessageContent("AI Response")
                         )
                     }
                 );
@@ -117,7 +120,7 @@ public class AINodeTests
                     {
                         new AIMessage(
                             id: "msg-1",
-                            content: new MessageContent { IsSimple = true, SimpleContent = "Response" }
+                            content: new MessageContent("Response")
                         )
                     }
                 );
@@ -149,7 +152,7 @@ public class AINodeTests
                     {
                         new AIMessage(
                             id: "msg-1",
-                            content: new MessageContent { IsSimple = true, SimpleContent = "Async response" }
+                            content: new MessageContent("Async response")
                         )
                     }
                 );
@@ -259,8 +262,6 @@ public class AINodeTests
     public async Task AINode_ExecuteAsync_Respects_CancellationToken_From_Logic()
     {
         // Arrange
-        var cancellationWasCalled = false;
-
         var aiNode = new AINode("ai-1", "AI Node")
         {
             ExecutionLogic = async (context, ct) =>
@@ -343,11 +344,11 @@ public class AINodeTests
         {
             new HumanMessage(
                 id: "msg-1",
-                content: new MessageContent { IsSimple = true, SimpleContent = "Hello" }
+                content: new MessageContent("Hello")
             ),
             new AIMessage(
                 id: "msg-2",
-                content: new MessageContent { IsSimple = true, SimpleContent = "Hi there" }
+                content: new MessageContent("Hi there")
             )
         };
 
@@ -401,7 +402,7 @@ public class AINodeTests
         };
 
         var globalVariables = new Dictionary<string, object?> { ["userId"] = "user-123" };
-        var context = new ExecutionContext(
+        var context = new ExecutionContextClass(
             executionId: "test",
             threadId: "test",
             graphId: "test",
@@ -445,11 +446,7 @@ public class AINodeTests
                 {
                     new AIMessage(
                         id: Guid.NewGuid().ToString(),
-                        content: new MessageContent
-                        {
-                            IsSimple = true,
-                            SimpleContent = $"Classification: {classification}"
-                        }
+                        content: new MessageContent($"Classification: {classification}")
                     )
                 };
 
@@ -469,7 +466,7 @@ public class AINodeTests
         };
 
         var globalVariables = new Dictionary<string, object?> { ["input"] = "This is a long input text for testing" };
-        var context = new ExecutionContext(
+        var context = new ExecutionContextClass(
             executionId: "test",
             threadId: "test",
             graphId: "test",
