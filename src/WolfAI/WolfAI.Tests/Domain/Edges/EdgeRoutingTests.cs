@@ -18,10 +18,10 @@ public class EdgeRoutingTests
         public string ThreadId { get; } = "test-thread";
         public string GraphId { get; } = "test-graph";
         public string CurrentNodeId { get; set; } = "test-node";
-        public IDictionary<string, object?> GlobalVariables { get; } = new Dictionary<string, object?>();
+        public IReadOnlyDictionary<string, object?> GlobalVariables { get; } = new Dictionary<string, object?>();
         public VariableScope Variables { get; } = new VariableScope(new Dictionary<string, object?>());
-        public List<BaseMessage> Messages { get; } = new();
-        public Stack<string> NodeExecutionHistory { get; } = new();
+        public IReadOnlyList<BaseMessage> Messages { get; } = new List<BaseMessage>();
+        public IReadOnlyList<string> NodeExecutionHistory { get; } = new List<string>();
         public IServiceProvider? ServiceProvider { get; }
         public ILogger? Logger { get; }
         public ActivitySource? ActivitySource { get; }
@@ -29,15 +29,11 @@ public class EdgeRoutingTests
         public CancellationToken CancellationToken { get; }
         public ExecutionMetrics Metrics { get; } = new();
         public DateTime StartedAt { get; } = DateTime.UtcNow;
-        public Dictionary<string, object?> Metadata { get; } = new();
+        public IReadOnlyDictionary<string, object?> Metadata { get; } = new Dictionary<string, object?>();
         public TimeSpan Elapsed { get; }
 
         public int NodesExecuted { get; set; }
         public string? LastNodeId { get; set; }
-
-        public void AddMessage(BaseMessage message) { }
-        public void RecordNodeExecution(string nodeId) { }
-        public IReadOnlyList<string> GetExecutionHistory() => new List<string>();
     }
 
     [Fact]

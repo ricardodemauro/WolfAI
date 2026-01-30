@@ -39,7 +39,7 @@ This document breaks down the MVP implementation into concrete, actionable tasks
 - [x] `Graph` class with properties: `Id`, `Name`, `Nodes` (IReadOnlyDictionary), `Edges` (IReadOnlyList), `EntryNodeId`
 - [x] `Node` abstract base class with: `Id`, `Name`, `NodeType` property, `Middleware` collection, and `ExecuteAsync` abstract method
 - [x] `NodeType` enum: `Start`, `End`, `AI`, `Tool`
-- [ ] `NodeResult` class with: `Success`, `Output`, `Messages` (IReadOnlyList<BaseMessage> to append), `Variables` (IReadOnlyDictionary<string, object> to merge), `Error`, `Duration`
+- [x] `NodeResult` class with: `Success`, `Output`, `Messages` (IReadOnlyList<BaseMessage> to append), `Variables` (IReadOnlyDictionary<string, object> to merge), `Error`, `Duration`
 - [x] `Edge` class with: `Id`, `SourceNodeId`, `TargetNodeId`, `RoutingFunction` (Func<ExecutionContext, bool>), `Priority`
 - [x] `EdgeMetadata` class with: `Description`, `Tags`
 
@@ -131,21 +131,21 @@ This document breaks down the MVP implementation into concrete, actionable tasks
 *Dependencies: Phase 1.1, 1.2*  
 *Estimated Effort: 1.5 days*
 
-#### Task 1.3.1: Implement StartNode and EndNode
+#### Task 1.3.1: Implement StartNode and EndNode ✅ **COMPLETED**
 
 **Objective**: Create entry and exit point nodes for the graph.
 
 **Acceptance Criteria**:
-- [ ] `StartNode` sealed class inheriting `Node`
+- [x] `StartNode` sealed class inheriting `Node`
   - `NodeType` returns `NodeType.Start`
   - `ExecuteAsync`: Returns NodeResult with initial HumanMessage from ExecutionContext.GlobalVariables["input"]
   - **DOES NOT mutate context** - returns messages to be appended by execution engine
   - No outgoing routing logic (always passes to first edge)
-- [ ] `EndNode` sealed class inheriting `Node`
+- [x] `EndNode` sealed class inheriting `Node`
   - `NodeType` returns `NodeType.End`
   - `ExecuteAsync`: Returns NodeResult with final output captured from last message
   - No outgoing edges allowed (validation in Graph)
-- [ ] Graph validation ensures: StartNode at entry, EndNode at exit, no other entry/exit points
+- [x] Graph validation ensures: StartNode at entry, EndNode at exit, no other entry/exit points
 
 **Reference**: [Architecture 2.1.2](02-architecture.md#212-node) - Special Node Types
 
