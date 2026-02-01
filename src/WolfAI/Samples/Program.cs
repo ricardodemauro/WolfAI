@@ -27,71 +27,82 @@ class Program
 
         Console.WriteLine("=== WolfAI Core API Sample ===\n");
 
-        // Step 1: Create custom nodes for demonstration
-        Console.WriteLine("Step 1: Creating nodes...");
-        var startNode = new SimpleStartNode("start_1", "Start");
-        var processNode = new ProcessingNode("process_1", "Process Input");
-        var decisionNode = new DecisionNode("decision_1", "Decision Branch");
-        var successEndNode = new SimpleEndNode("end_success", "Success End");
-        var failEndNode = new SimpleEndNode("end_fail", "Failure End");
-        Console.WriteLine("  Created: StartNode, ProcessingNode, DecisionNode, 2x EndNodes\n");
-
-        // Step 2: Create edges to connect nodes
-        Console.WriteLine("Step 2: Creating edges and building graph...");
-        var nodes = new Dictionary<string, Node>
-        {
-            { startNode.Id, startNode },
-            { processNode.Id, processNode },
-            { decisionNode.Id, decisionNode },
-            { successEndNode.Id, successEndNode },
-            { failEndNode.Id, failEndNode }
-        };
-
-        var edges = new List<Edge>
-        {
-            // Start -> Process: Always taken
-            new Edge(
-                id: "edge_start_process",
-                sourceNodeId: startNode.Id,
-                targetNodeId: processNode.Id,
-                routingFunction: null, // Always true
-                priority: 0),
-
-            // Process -> Decision: Always taken
-            new Edge(
-                id: "edge_process_decision",
-                sourceNodeId: processNode.Id,
-                targetNodeId: decisionNode.Id,
-                routingFunction: null,
-                priority: 0),
-
-            // Decision -> Success: If processed_success = true
-            new Edge(
-                id: "edge_decision_success",
-                sourceNodeId: decisionNode.Id,
-                targetNodeId: successEndNode.Id,
-                routingFunction: ctx => ctx.GlobalVariables.TryGetValue("processed_success", out var val) && (bool?)val == true,
-                priority: 0),
-
-            // Decision -> Failure: If processed_success != true
-            new Edge(
-                id: "edge_decision_fail",
-                sourceNodeId: decisionNode.Id,
-                targetNodeId: failEndNode.Id,
-                routingFunction: ctx => ctx.GlobalVariables.TryGetValue("processed_success", out var val) && (bool?)val != true,
-                priority: 1)
-        };
-
-        var graph = new Graph(
-            id: "sample_graph_1",
-            name: "Sample Graph with Routing",
-            nodes: nodes,
-            edges: edges,
-            entryNodeId: startNode.Id);
+        // Step 1 & 2: Build graph using GraphBuilder
+        Console.WriteLine("Step 1: Building graph with GraphBuilder...");
+        var graph = new GraphBuilder("Sample Graph with Routing")
+            .AddStartNode()
+            .AddAINode("process_1", "Process Input", async (context, ct) =>
+            {
+                var startTime = DateTime.UtcNow;
+                var inputValue = context.GlobalVariables.TryGetValue("input", out var val) 
+                    ? val?.ToString() ?? "No input" 
+                    : "No input";
+                var processedValue = $"Processed: [{inputValue.ToUpper()}]";
+                var newVariables = new Dictionary<string, object?>
+                {
+                    { "processed_output", processedValue },
+                    { "processed_success", true },
+                    { "processing_timestamp", DateTime.UtcNow.ToString("O") }
+                };
+                return NodeResult.SuccessResult(
+                    output: processedValue,
+                    variables: newVariables,
+                    duration: DateTime.UtcNow - startTime);
+            })
+            .AddAINode("decision_1", "Decision Branch", async (context, ct) =>
+            {
+                var startTime = DateTime.UtcNow;
+                var decision = context.GlobalVariables.TryGetValue("processed_success", out var val) && (bool?)val == true
+                    ? "Success path"
+                    : "Failure path";
+                var newVariables = new Dictionary<string, object?>
+                {
+                    { "decision_result", decision }
+                };
+                return NodeResult.SuccessResult(
+                    output: decision,
+                    variables: newVariables,
+                    duration: DateTime.UtcNow - startTime);
+            })
+            .AddAINode("end_success", "Success End", async (context, ct) =>
+            {
+                var startTime = DateTime.UtcNow;
+                var finalOutput = $"Execution ended at Success End";
+                return NodeResult.SuccessResult(
+                    output: finalOutput,
+                    duration: DateTime.UtcNow - startTime);
+            })
+            .AddAINode("end_fail", "Failure End", async (context, ct) =>
+            {
+                var startTime = DateTime.UtcNow;
+                var finalOutput = $"Execution ended at Failure End";
+                return NodeResult.SuccessResult(
+                    output: finalOutput,
+                    duration: DateTime.UtcNow - startTime);
+            })
+            .AddEdge("start", "process_1")
+            .AddEdge("process_1", "decision_1")
+            .AddEdge("decision_1", "end_success", ctx =>
+            {
+                if (ctx.GlobalVariables.TryGetValue("processed_success", out var val))
+                {
+                    return (bool?)val == true;
+                }
+                return false;
+            }, priority: 0)
+            .AddEdge("decision_1", "end_fail", ctx =>
+            {
+                if (ctx.GlobalVariables.TryGetValue("processed_success", out var val))
+                {
+                    return (bool?)val != true;
+                }
+                return true;
+            }, priority: 1)
+            .Build();
 
         Console.WriteLine($"  Created graph: {graph.Name} (ID: {graph.Id})");
         Console.WriteLine($"  Nodes: {string.Join(", ", graph.Nodes.Keys)}");
-        Console.WriteLine($"  Edges: {edges.Count}\n");
+        Console.WriteLine($"  Edges: {graph.Edges.Count}\n");
 
         // Step 3: Create execution context
         Console.WriteLine("Step 3: Creating execution context...");
